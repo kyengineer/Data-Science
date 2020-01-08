@@ -1,0 +1,306 @@
+---
+title: "Water Treatment Modeling Report"
+author: "John Downey"
+date: "Jan 7, 2020"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+**Introduction**
+
+The purpose of this paper was to use compare Linear Regression (lm), Generized Linear Model (glm), k-Nearest Neighbor (knn), K-Nearest Neighbors (kknn), Bayesian Regularizad Neural Networks (brnn) and Random Forest (rf) machine learning algorythems and comp
+
+This project uses Machine learning to predict waste water treatment plants discharge BOD. I am familiar with this operation from my engineering background. I have been responsible for the design and operation of various chemical processes; I selected a wastewater treatment data. This dataset comes from the daily measures of sensors in an urban wastewater treatment plant.
+
+**Background**
+
+As a practicing chemical engineer I have been responsible for design and operation of various chemical processes, I selected a waste water treatment data. This dataset comes from the daily measures of sensors in an urban waste water treatment plant.
+
+This WWTP uses biological processes in the treatment of wastewater. This process uses in series an aerated lagoons followed by settling. The purposed of this report we are only going to medel the effluent BOD.
+
+The dataset is from Manel Poch at the Universitat Autonoma of Barcelona. Bellaterra. Barcelona Spain that contained a waste water treatment data. The data had 22 inputs, seven (7) output and five performance inputs. These are listed below. There are both input to the waste water treatment system and outputs. We are concerned with one output.This is BOD. This is the universal measure of water quality. Low BOD are good. The BOD of the effluent from the WWTP is required to be 50 or less.
+
+A dataset from Manel Poch at the Universitat Autonoma of Barcelona. Bellaterra. Barcelona Spain that contained a waste water treatment data. The data had 22 inputs, seven (7) output and five performance inputs. A total of 17 inputs were used to predict BOD. This report will use seven(7) input parameter to model one output parameter.
+
+
+   Inputs to WWTP (Waste Water Treatment System)  
+ 
+- Q-E	  Input flow to plant) 
+- DBO-E	Input Biological demand of oxygen to plant)
+- DBO-P	Input Biological demand of oxygen to primary settler)
+- RD-DBO-P	(performance input Biological demand of oxygen in primary settler)
+- RD-SS-P	(performance input suspended solids to primary settler)
+- RD-SED-P	(performance input sediments to primary settler)
+- RD-DBO-S	(performance input Biological demand of oxygen to secondary settler)
+- RD-DQO-S	(performance input chemical demand of oxygen to secondary settler)
+
+
+**Method of analysis**
+Below is a summery of the method of analysis 
+  
+- Load Libriaries
+- Download to move datafile to working directory
+- Read datafile into R dataframe
+- Add column labels
+- Convert charactors to numerical data
+- Remove observatons with NAs
+- Remove coluen we doe not nned
+
+**Results**
+   OUTPUT
+DBO-S	Output Biological demand of oxygen)
+
+RSME Results
+  lm   glm  knn   knnn  brnn  rf
+10.97 10.97 6.68  9.99 10.75 10.00
+
+k Nearest Neighbors resulted in the lowest value of RSME
+
+**Method of Analysis**
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+options(warn = -1)
+```
+
+Install the necessary packages
+```{r, message=FALSE}
+#Install package to read csv file
+library(caret)
+library(tidyverse)
+
+
+```
+
+Using the read_csv function the data is read into the R dataframe.
+
+```{r}
+#Read data into dataframe
+data1 <- read_csv("water-treatment.data")
+#Read column name into a data frame
+#head(data1)
+
+```
+Columns names are are added to the dataframe,
+
+```{r}
+
+#Column names
+colnames(data1) <- c("Date", "Q_E","ZN_E","PH_E","DBO_E","DQO_E","SS_E" ,"SSV_E" ,"SED_E",
+                     "COND_E","PH_P","DBO_P","SS_P","SSV_P","SED_P","COND_P","PH_D","DBO_D",
+                     "DQO_D","SS_D","SSV_D","SED_D","COND_D","PH_S","DBO_S","DQO_S","SS_S",
+                     "SSV_S","SED_S","COND_S","RD_DBO_P","RD_SS_P","RD_SED_P",
+                     "RD_DBO_S","RD_DQO_S","RD_DBO_G","RD_DQO_G","RD_SS_G","RD_SSE_G")
+#Extract Date column to add back later
+date_column <- select(data1, "Date")
+date_column
+```
+The dataframe oberservations were in charactor format.  This is changed to numeric.  As can be seen there are many NA in the data.  
+
+```{r echo=FALSE}
+#Convert character columns into data 
+data2 <- data1 %>% map_if(is.character, as.numeric)
+```
+View command is not run in this knit file. It was places so the user could have a quick look at the data.
+```{r}
+#view(data2)
+```
+
+The data column is added in date format and the original column removed.
+```{r}
+#Add Date column in date format
+data3 <- bind_cols(date_column, data2)
+#head(data3)
+```
+this deletes old date column 
+```{r}
+data3$Date1 <- NULL #delete date1 column that was convered to NA
+
+dim(data3)
+```
+
+```{r}
+#Rename the dataframe we are working with to water treatment
+water_treatment <- data3 
+
+#View(water_treatment)
+#As you can see from the view there are many NAs to be removed
+#Save the water treatment data so it does not have to be regernerated
+```
+Data file is saved so it does not have to be recreated everytime it is used.
+```{r}
+
+save(water_treatment, file = "water_treatment.RDA")
+#Check file after saving
+load("water_treatment.RDA")
+#head(water_treatment)
+class(water_treatment)
+
+```
+The observations that are "NA" are removed.  This method was choosen becasue it still left over 300 observations.
+```{r}
+#Remove observations with NA
+wt <- water_treatment %>% drop_na()
+dim(wt)
+#head(wt)
+#Running str shows all the data is numeric accept the Date column is charactor
+```
+A new data from is created with only the column we need for 
+```{r}
+set.seed(3456)
+#We are predicting BOD  
+wt_BOD <- select(wt, Q_E, DBO_E, DBO_S, RD_DBO_P, RD_SS_P, RD_SED_P, RD_DBO_S, RD_DQO_S)
+```
+
+**Analysis of Data**
+
+```{r}
+sd(wt_BOD$DBO_E)
+sd(wt_BOD$DBO_S)
+mean(wt_BOD$DBO_E - wt_BOD$DBO_S)
+```
+\newpage
+```{r}
+ggplot(data = wt_BOD) +
+  geom_point(mapping = aes(y = DBO_S, x = DBO_E)) +
+  xlab("INPUT BOD") +
+  ylab("OUTPUT BOD")
+```
+The above graph shows that the water discharge from the waste water treatment plant is alway below the BOD limit of 50.
+
+\newpage
+```{r}
+ggplot(data = wt_BOD) +
+  geom_point(mapping = aes(y = DBO_S, x = Q_E)) +
+  xlab("FLOW") +
+  ylab("OUTPUT BOD")
+```
+The above graph show the flow rate has little effect on the discharge BOD
+
+\newpage
+```{r}
+ggplot(data = wt_BOD) +
+  geom_point(mapping = aes(y = DBO_E, x = RD_DBO_P)) +
+  xlab("BOD PRIMARY SETTLER") +
+  ylab("INPUT BOD")
+```
+
+\newpage
+```{r}
+ggplot(data = wt_BOD) +
+  geom_point(mapping = aes(y = DBO_S, x = RD_DBO_P)) +
+  xlab("BOD PRIMARY SETTLER PERFORMANCE") +
+  ylab("OUTPUT BOD")
+```
+\newpage
+```{r}
+ggplot(data = wt_BOD) +
+  geom_point(mapping = aes(y = DBO_S, x = RD_SS_P)) +
+  xlab("SS PRIMARY SETTLER") +
+  ylab("OUTPUT BOD")
+```
+
+
+
+```{r}
+#head(wt_BOD)
+```
+This section splits the data into the trainlng set and the testing set.
+
+```{r}
+#split database into test and train
+test_index <- createDataPartition(wt_BOD$Q_E,times = 1, p = 0.8, list = FALSE)
+train_water <- wt_BOD[test_index,]
+test_water <- wt_BOD[-test_index,]
+```
+
+```{r}
+#Use #head function to review dataframe
+head(test_water)
+```
+
+```{r}
+head(train_water)
+```
+This section creates the model for the 6 different methods.  
+
+```{r results='hide'}
+#create two models for testing glm and knn 
+fit_lm <- train(DBO_S ~ ., method = "lm", data = train_water )
+fit_glm <- train(DBO_S ~ ., method = "glm", data = train_water )
+fit_knn <- train(DBO_S ~ ., method = "knn", data = train_water, tuneGrid = data.frame(k = seq(2, 201, 5)) )
+fit_kknn <- train(DBO_S ~ ., method = "kknn", data = train_water)
+fit_brnn <- train(DBO_S ~ ., method = "brnn", data = train_water)
+fit_rf <- train(DBO_S ~ ., method = "rf", data = train_water)
+```
+
+```{r}
+summary(fit_lm)
+```
+
+```{r}
+summary(fit_glm)
+```
+
+```{r}
+summary(fit_knn)
+```
+
+```{r}
+summary(fit_kknn)
+```
+
+```{r}
+summary(fit_brnn)
+```
+```{r}
+summary(fit_rf)
+```
+
+```{r}
+y_hat_wt_BOD_lm <- predict(fit_lm, data = test_water)
+y_hat_wt_BOD_glm <- predict(fit_glm, data = test_water)
+y_hat_wt_BOD_knn <- predict(fit_knn, data = test_water)
+y_hat_wt_BOD_kknn <- predict(fit_kknn, data = test_water)
+y_hat_wt_BOD_brnn <- predict(fit_brnn, data = test_water)
+y_hat_wt_BOD_rf <- predict(fit_rf, data = test_water)
+```
+
+```{r}
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+```
+
+
+```{r}
+
+```
+
+```{r}
+rlm <- RMSE(test_water$DBO_S, y_hat_wt_BOD_lm)
+rglm <- RMSE(test_water$DBO_S, y_hat_wt_BOD_glm)
+rknn <- RMSE(test_water$DBO_S, y_hat_wt_BOD_knn)
+rkknn <-RMSE(test_water$DBO_S, y_hat_wt_BOD_kknn)
+rbrnn <- RMSE(test_water$DBO_S, y_hat_wt_BOD_brnn)
+rrf <- RMSE(test_water$DBO_S, y_hat_wt_BOD_rf)
+temp <- data.frame(rlm,rglm, rknn, rkknn, rbrnn, rrf)
+
+colnames(temp) <-c("lm","glm","knn","kknn","brnn","rf")
+```
+\newpage
+```{r}
+temp
+```
+table
+
+**Conclusion**
+  
+  Six different machine learning algorithm were evaluated and k-nearest neighbor had the best result.  This result is well below the maximum permitied BOD discharge.
+
+RSME Results
+```{r}
+temp
+```
+
+Random Forests resulted in the lowest value of RSME
